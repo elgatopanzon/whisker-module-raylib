@@ -8,19 +8,21 @@
 cmake_minimum_required(VERSION 3.14)
 project(whisker-module-raylib C)
 
-# Check for local whisker first, then fall back to FetchContent
-if(EXISTS "$ENV{HOME}/Projects/whisker")
-    message(STATUS "Using local whisker from $ENV{HOME}/Projects/whisker")
-    add_subdirectory($ENV{HOME}/Projects/whisker whisker)
-else()
-    message(STATUS "Fetching whisker from GitHub")
-    include(FetchContent)
-    FetchContent_Declare(
-        whisker
-        GIT_REPOSITORY https://github.com/ElGatoPanzon/whisker.git
-        GIT_TAG main
-    )
-    FetchContent_MakeAvailable(whisker)
+if(NOT TARGET whisker)
+    # Check for local whisker first, then fall back to FetchContent
+    if(EXISTS "$ENV{HOME}/Projects/whisker")
+        message(STATUS "Using local whisker from $ENV{HOME}/Projects/whisker")
+        add_subdirectory($ENV{HOME}/Projects/whisker whisker)
+    else()
+        message(STATUS "Fetching whisker from GitHub")
+        include(FetchContent)
+        FetchContent_Declare(
+            whisker
+            GIT_REPOSITORY https://github.com/ElGatoPanzon/whisker.git
+            GIT_TAG main
+        )
+        FetchContent_MakeAvailable(whisker)
+    endif()
 endif()
 
 # Fetch raylib
