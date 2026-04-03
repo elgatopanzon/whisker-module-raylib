@@ -8,6 +8,12 @@
 cmake_minimum_required(VERSION 3.14)
 project(whisker-module-raylib C)
 
+include(FetchContent)
+
+# Disable whisker's tests and benchmarks when used as a dependency
+set(WHISKER_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(WHISKER_TESTS OFF CACHE BOOL "" FORCE)
+
 if(NOT TARGET whisker)
     # Check for local whisker first, then fall back to FetchContent
     if(EXISTS "$ENV{HOME}/Projects/whisker")
@@ -15,7 +21,6 @@ if(NOT TARGET whisker)
         add_subdirectory($ENV{HOME}/Projects/whisker whisker)
     else()
         message(STATUS "Fetching whisker from GitHub")
-        include(FetchContent)
         FetchContent_Declare(
             whisker
             GIT_REPOSITORY https://github.com/ElGatoPanzon/whisker.git
@@ -26,7 +31,6 @@ if(NOT TARGET whisker)
 endif()
 
 # Fetch raylib
-include(FetchContent)
 FetchContent_Declare(
     raylib
     URL https://github.com/raysan5/raylib/archive/refs/tags/5.5.tar.gz
