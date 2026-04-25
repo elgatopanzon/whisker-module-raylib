@@ -7,6 +7,11 @@
 #include "wm_raylib_rendering.h"
 #include "wm_raylib_macros.h"
 
+/******************
+*  init systems  *
+******************/
+// systems running at startup and only once
+
 // init window system runs once at startup to initialise the 
 // raylib window and rendering context
 w_ecs_simple_system(wm_raylib_rendering_init_window, WM_PHASE_ON_STARTUP, {
@@ -36,6 +41,13 @@ w_ecs_simple_system(wm_raylib_rendering_init_render_texture, WM_PHASE_ON_STARTUP
 	raylib_render_state->render_texture = LoadRenderTexture(render_config->render_resolution.x, render_config->render_resolution.y);
 });
 
+
+/******************
+*  sync systems  *
+******************/
+// sync systems handle raylib<->ecs data e.g. render state
+
+
 // init the render texture, the texture is what gets rendered to the screen
 w_ecs_simple_system(wm_raylib_rendering_render_state_sync, WM_PHASE_FINAL, {
 	struct w_rendering_render_state *render_state = w_rendering_get_render_state(world);
@@ -47,6 +59,11 @@ w_ecs_simple_system(wm_raylib_rendering_render_state_sync, WM_PHASE_FINAL, {
 	render_state->window_resolution.y = GetScreenHeight();
 });
 
+
+/********************
+*  render texture  *
+********************/
+// the main draw pipeline draws everything to a single texture then draws that
 
 // these 2 systems activate and deactive the render texture ensuring everything
 // in the RENDER phases is rendered to this texture
@@ -116,6 +133,12 @@ w_ecs_simple_system(wm_raylib_rendering_filter_apply, WM_RENDER_PHASE_ON_FILTER,
 	SetTextureFilter(raylib_render_state->render_texture.texture, raylib_filter);
 });
 
+
+/******************
+*  draw systems  *
+******************/
+// the main draw systems, draws the render texture
+
 // draw the render texture to the screen
 w_ecs_simple_system(wm_raylib_rendering_draw_render_texture, WM_RENDER_PHASE_ON_DRAW, {
 	struct w_rendering_render_config *render_config = w_rendering_get_render_config(world);
@@ -134,6 +157,12 @@ w_ecs_simple_system(wm_raylib_rendering_draw_render_texture, WM_RENDER_PHASE_ON_
 	// end drawing
 	EndDrawing();
 });
+
+
+/*********************
+*  handler systems  *
+*********************/
+// handlers watch for specific events/world behaviours and perform actions
 
 // trigger world shutdown result when window closed
 w_ecs_simple_system(wm_raylib_rendering_handle_window_close, WM_PHASE_POST, {

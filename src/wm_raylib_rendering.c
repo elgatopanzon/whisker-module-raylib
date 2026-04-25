@@ -7,6 +7,7 @@
 
 #include "wm_raylib_rendering.h"
 #include "wm_raylib_rendering_systems.c"
+#include "wm_raylib_rendering_camera_systems.c"
 
 void wm_raylib_rendering_init(struct w_ecs_world *world)
 {
@@ -24,6 +25,9 @@ void wm_raylib_rendering_init(struct w_ecs_world *world)
 	wm_raylib_rendering_draw_render_texture_register(world);
 	wm_raylib_rendering_handle_window_close_register(world);
 	wm_raylib_rendering_filter_apply_register(world);
+
+	// camera
+	wm_raylib_rendering_camera_state_sync_register(world);
 }
 
 void wm_raylib_rendering_free(struct w_ecs_world *world)
