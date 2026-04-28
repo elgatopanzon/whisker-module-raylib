@@ -45,6 +45,19 @@ w_ecs_simple_system(wm_raylib_rendering_init_render_texture, WM_PHASE_ON_STARTUP
 });
 
 
+/**********************
+*  shutdown systems  *
+**********************/
+// these systems run at shutdown only
+
+// close raylib window on shutdown
+w_ecs_simple_system(wm_raylib_rendering_close_window, WM_PHASE_ON_SHUTDOWN, {
+    (void)world;
+    CloseWindow();
+});
+
+
+
 /******************
 *  sync systems  *
 ******************/
