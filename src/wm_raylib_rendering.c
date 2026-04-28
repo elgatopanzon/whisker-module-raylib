@@ -6,8 +6,7 @@
  */
 
 #include "wm_raylib_rendering.h"
-#include "wm_raylib_rendering_systems.c"
-#include "wm_raylib_rendering_camera_systems.c"
+#include "wm_raylib_rendering_systems.h"
 
 void wm_raylib_rendering_init(struct w_ecs_world *world)
 {
