@@ -10,6 +10,8 @@
 #include "wm_raylib_rendering.h"
 #include "wm_raylib_macros.h"
 
+#include "rlgl.h"
+
 /******************
 *  init systems  *
 ******************/
@@ -65,7 +67,7 @@ w_ecs_simple_system(wm_raylib_rendering_close_window, WM_PHASE_ON_SHUTDOWN, {
 
 
 // init the render texture, the texture is what gets rendered to the screen
-w_ecs_simple_system(wm_raylib_rendering_render_state_sync, WM_PHASE_FINAL, {
+w_ecs_simple_system(wm_raylib_rendering_render_state_sync, WM_RENDER_PHASE_ON_SYNC, {
 	struct w_rendering_render_state *render_state = w_rendering_get_render_state(world);
 
 	render_state->render_fps = GetFPS();
@@ -196,29 +198,74 @@ w_ecs_simple_system(wm_raylib_rendering_handle_window_close, WM_PHASE_POST, {
 /********************
 *  camera systems  *
 ********************/
+// these 2 systems are responsible for activating and deactivating the camera
+// note: it uses the whisker camera state directly not raylib Camera struct
 
-// to render the camera we need to grab the data from the active camera entity
 w_ecs_simple_system(
-	wm_raylib_rendering_camera_state_sync,
-	WM_RENDER_PHASE_PRE_WORLD,
+	wm_raylib_rendering_camera_begin_camera_3d,
+	WM_RENDER_PHASE_BEGIN_WORLD,
 {
-	struct w_rendering_camera_state *camera_state = w_ecs_get_module_resource(world, WM_RENDERING_CAMERA_STATE_RESOURCE_ID);
-	struct wm_raylib_render_state *raylib_render_state = wm_raylib_rendering_get_render_state(world);
+	// grab the camera state and render state
+	struct w_rendering_camera_state *camera_state = w_rendering_get_camera_state(world);
+	struct w_rendering_render_config *render_config = w_rendering_get_render_config(world);
 
-	// set camera values
-	raylib_render_state->render_camera.position = w2rl_vec3(camera_state->camera_position);
-	raylib_render_state->render_camera.target = w2rl_vec3(camera_state->camera_target);
-	raylib_render_state->render_camera.up = w2rl_vec3(camera_state->camera_up);
-	raylib_render_state->render_camera.fovy = camera_state->camera_fov_deg;
+	// draw any outstanding render batches
+	rlDrawRenderBatchActive();
 
-	// camera project mode
-	switch (camera_state->camera_projection) {
-		case W_RENDERING_CAMERA_PROJECTION_ORTHOGRAPHIC:
-			raylib_render_state->render_camera.projection = CAMERA_ORTHOGRAPHIC;
-			break;
-		case W_RENDERING_CAMERA_PROJECTION_PERSPECTIVE:
-			raylib_render_state->render_camera.projection = CAMERA_PERSPECTIVE;
-			break;
-			
-	}
+	// set to projection mode and upload matrix
+    rlMatrixMode(RL_PROJECTION);
+    rlPushMatrix();
+    rlLoadIdentity();
+
+	// compute aspect ratio from render width and height
+	// note: this is sync'd in from the context already
+    float aspect = (float)render_config->render_resolution.x / (float)render_config->render_resolution.y;
+
+	// handle perspective and orthographic camera modes
+	double top;
+	double right;
+    switch (camera_state->camera_projection) {
+    	case W_RENDERING_CAMERA_PROJECTION_PERSPECTIVE:
+        	top = camera_state->camera_near_clip * tan(camera_state->camera_fov_deg * 0.5 * DEG2RAD);
+        	right = top * aspect;
+        	rlFrustum(-right, right, -top, top, camera_state->camera_near_clip, camera_state->camera_far_clip);
+    		break;
+    	case W_RENDERING_CAMERA_PROJECTION_ORTHOGRAPHIC:
+        	top = camera_state->camera_fov_deg / 2.0;
+        	right = top * aspect;
+        	rlOrtho(-right, right, -top, top, camera_state->camera_near_clip, camera_state->camera_far_clip);
+    		break;
+    	default:
+    		break;
+    }
+
+	// switch matrix mode to model view to prepare for rendering models
+    rlMatrixMode(RL_MODELVIEW);
+    rlLoadIdentity();
+
+	// calculate the view matrix from the camera
+    w_mat4 camera_matrix = w_mat4_look_at(camera_state->camera_position, camera_state->camera_target, camera_state->camera_up);
+    rlMultMatrixf(camera_matrix.m);
+
+	// enable depth testing (respect Z)
+    rlEnableDepthTest();
 });
+
+w_ecs_simple_system(
+	wm_raylib_rendering_camera_end_camera_3d,
+	WM_RENDER_PHASE_END_WORLD,
+{
+	// draw pending render batches
+    rlDrawRenderBatchActive();
+
+	// pop the previous active camera matrix and reset to modelview mode
+    rlMatrixMode(RL_PROJECTION);
+    rlPopMatrix();
+
+    rlMatrixMode(RL_MODELVIEW);
+    rlLoadIdentity();
+
+	// disable depth testing (ignore Z)
+    rlDisableDepthTest();
+});
+

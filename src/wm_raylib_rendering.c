@@ -32,7 +32,8 @@ void wm_raylib_rendering_init(struct w_ecs_world *world)
 	wm_raylib_rendering_filter_apply_register(world);
 
 	// camera systems
-	wm_raylib_rendering_camera_state_sync_register(world);
+	wm_raylib_rendering_camera_begin_camera_3d_register(world);
+	wm_raylib_rendering_camera_end_camera_3d_register(world);
 }
 
 void wm_raylib_rendering_free(struct w_ecs_world *world)

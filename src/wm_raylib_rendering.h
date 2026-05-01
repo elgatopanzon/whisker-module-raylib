@@ -23,10 +23,6 @@ struct wm_raylib_render_state
 {
 	// everything we draw will be written to the render texture
     RenderTexture2D render_texture;
-
-    // there is only 1 active raylib camera
-    // activated camera entities write their camera components into this
-    Camera3D render_camera;
 };
 
 // initialize the raylib rendering module
