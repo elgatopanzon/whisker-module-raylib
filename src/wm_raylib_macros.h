@@ -18,6 +18,5 @@
 #define w2rl_vec3(v) (Vector3){.x = v.x, .y = v.y, .z = v.z}
 #define rl2w_vec3(v) (w_vec3){.x = v.x, .y = v.y, .z = v.z}
 
-
 #endif /* end of include guard WM_RAYLIB_MACROS_H */
 

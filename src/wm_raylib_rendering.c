@@ -15,25 +15,7 @@ void wm_raylib_rendering_init(struct w_ecs_world *world)
 	w_ecs_set_module_resource(world, WM_MODULE_RESOURCE_RAYLIB_RENDERING_ID, render_state);
 
 	// register systems
-	// startup
-	wm_raylib_rendering_init_window_register(world);
-	wm_raylib_rendering_init_render_texture_register(world);
-
-	// shutdown
-	wm_raylib_rendering_close_window_register(world);
-
-
-	wm_raylib_rendering_render_state_sync_register(world);
-	wm_raylib_rendering_activate_render_texture_register(world);
-	wm_raylib_rendering_deactivate_render_texture_register(world);
-	wm_raylib_rendering_clear_window_background_register(world);
-	wm_raylib_rendering_draw_render_texture_register(world);
-	wm_raylib_rendering_handle_window_close_register(world);
-	wm_raylib_rendering_filter_apply_register(world);
-
-	// camera systems
-	wm_raylib_rendering_camera_begin_camera_3d_register(world);
-	wm_raylib_rendering_camera_end_camera_3d_register(world);
+	wm_raylib_rendering_flush_render_buffer_commands_register(world);
 }
 
 void wm_raylib_rendering_free(struct w_ecs_world *world)
