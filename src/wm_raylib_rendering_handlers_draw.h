@@ -61,16 +61,24 @@ static inline void wm_raylib_rendering_handle_draw_text(
 
 	if (GetFontDefault().texture.id != 0)
 	{
-		int defaultFontSize = 10;   // default Font chars height in pixel
-		if (cmd->font_size < defaultFontSize) cmd->font_size = defaultFontSize;
+		/* int defaultFontSize = 10;   // default Font chars height in pixel */
+		/* if (cmd->font_size < defaultFontSize) cmd->font_size = defaultFontSize; */
 		/* int spacing = cmd->font_size/defaultFontSize; */
 
+		w_mat4 rs = w_mat4_from_trs(
+			((w_vec3){0, 0, 0}),  // no position in matrix
+			cmd->rotation,
+			((w_vec3){1, 1, 1})
+		);
+
+		// extract Y rotation angle from quat for 2D spin
+		float yaw = w_quat_to_euler(cmd->rotation).y;
 		rlPushMatrix();
 
-			rlTranslatef(cmd->position.x, cmd->position.y, 0.0f);
-			rlRotatef(cmd->rotation, 0.0f, 0.0f, 1.0f);
-			rlTranslatef(-cmd->origin.x, -cmd->origin.y, 0.0f);
-
+    		rlTranslatef(cmd->position.x, cmd->position.z, 0.0f);
+    		rlRotatef(yaw * RAD2DEG, 0, 0, 1);  // Z rotation in screen space
+    		rlTranslatef(-cmd->origin.x, -cmd->origin.z, 0.0f);
+    		
 			DrawTextEx(GetFontDefault(), cmd->text, ((Vector2){ 0.0f, 0.0f }), cmd->font_size, cmd->font_spacing, w2rl_color(cmd->font_color));
 
 		rlPopMatrix();
