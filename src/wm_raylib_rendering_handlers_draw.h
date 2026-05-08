@@ -181,13 +181,15 @@ static void DrawTextCodepointUniversial(Font font, int codepoint, Vector3 positi
 /* Draw text using unified 2D/3D path. Mode is detected once via GL_DEPTH_TEST
    and drives coordinate layout and advance formula:
    - 3D: XZ plane, world-unit advances (divided by baseSize)
-   - 2D: XY plane, pixel advances (scaled by fontSize/baseSize) */
-static void DrawTextUnified(Font font, const char *text, Vector3 position, float fontSize, float spacing, bool backface, Color tint, Vector2 shadowOffset, Color shadowColor)
+   - 2D: XY plane, pixel advances (scaled by fontSize/baseSize)
+   lineHeight is a multiplier for vertical spacing between lines (1.0 = default) */
+static void DrawTextUnified(Font font, const char *text, Vector3 position, float fontSize, float spacing, float lineHeight, bool backface, Color tint, Vector2 shadowOffset, Color shadowColor)
 {
     int length = TextLength(text);
     float textOffsetY = 0.0f;
     float textOffsetX = 0.0f;
     float scale = fontSize/(float)font.baseSize;
+    if (lineHeight == 0) lineHeight = 1.0f;
     bool is3D = glIsEnabled(GL_DEPTH_TEST);
 
     for (int i = 0; i < length;)
@@ -202,7 +204,7 @@ static void DrawTextUnified(Font font, const char *text, Vector3 position, float
 
         if (codepoint == '\n')
         {
-            textOffsetY += is3D ? scale + 1.0f/(float)font.baseSize*scale : fontSize + 2;
+            textOffsetY += (is3D ? scale + 1.0f/(float)font.baseSize*scale : fontSize + 2) * lineHeight;
             textOffsetX = 0.0f;
         }
         else
@@ -286,7 +288,7 @@ static inline void wm_raylib_rendering_handle_draw_text(
 		}
 
 		// draw the text
-		DrawTextUnified(GetFontDefault(), cmd->text, ((Vector3){ 0.0f, 0.0f, 0.0f }), cmd->font_size, cmd->font_spacing, true, w2rl_color(cmd->font_color), w2rl_vec2(cmd->font_shadow), w2rl_color(cmd->font_shadow_color));
+		DrawTextUnified(GetFontDefault(), cmd->text, ((Vector3){ 0.0f, 0.0f, 0.0f }), cmd->font_size, cmd->font_spacing, cmd->font_line_height, true, w2rl_color(cmd->font_color), w2rl_vec2(cmd->font_shadow), w2rl_color(cmd->font_shadow_color));
 
 		rlPopMatrix();
 	}
