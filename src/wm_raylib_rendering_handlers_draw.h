@@ -55,7 +55,7 @@ static inline void wm_raylib_rendering_handle_draw_main_framebuffer(
 }
 
 
-static void DrawTextCodepointUniversial(Font font, int codepoint, Vector3 position, float fontSize, bool backface, Color tint)
+static void DrawTextCodepointUniversial(Font font, int codepoint, Vector3 position, float fontSize, bool backface, Color tint, Vector2 shadowOffset, Color shadowColor)
 {
     int index = GetGlyphIndex(font, codepoint);
     float scale = fontSize/(float)font.baseSize;
@@ -64,6 +64,7 @@ static void DrawTextCodepointUniversial(Font font, int codepoint, Vector3 positi
                          font.recs[index].width + 2.0f*font.glyphPadding, font.recs[index].height + 2.0f*font.glyphPadding };
 
     bool is3D = glIsEnabled(GL_DEPTH_TEST);
+    bool hasShadow = (shadowOffset.x != 0.0f || shadowOffset.y != 0.0f);
 
     float width, height;
     if (is3D)
@@ -92,9 +93,53 @@ static void DrawTextCodepointUniversial(Font font, int codepoint, Vector3 positi
         const float tw = (srcRec.x+srcRec.width)/font.texture.width;
         const float th = (srcRec.y+srcRec.height)/font.texture.height;
 
-        rlCheckRenderBatchLimit(4 + 4*(is3D && backface));
+        rlCheckRenderBatchLimit((4 + 4*(is3D && backface)) * (1 + hasShadow));
         rlSetTexture(font.texture.id);
 
+        // shadow pass: same glyph at offset position, drawn behind
+        if (hasShadow)
+        {
+            rlPushMatrix();
+                // 3D: scale offset from pixels to world units (same as glyph offsets)
+                // 2D: use offset directly in pixel space
+                if (is3D)
+                    rlTranslatef(position.x + shadowOffset.x/2.0f/(float)font.baseSize*scale, position.y - 0.001f, position.z + shadowOffset.y/2.0f/(float)font.baseSize*scale);
+                else
+                    rlTranslatef(position.x + shadowOffset.x, position.y + shadowOffset.y, position.z - 0.001f);
+
+                rlBegin(RL_QUADS);
+                    rlColor4ub(shadowColor.r, shadowColor.g, shadowColor.b, shadowColor.a);
+
+                    if (is3D)
+                    {
+                        rlNormal3f(0.0f, 1.0f, 0.0f);
+                        rlTexCoord2f(tx, ty); rlVertex3f(x,         y, z);
+                        rlTexCoord2f(tx, th); rlVertex3f(x,         y, z + height);
+                        rlTexCoord2f(tw, th); rlVertex3f(x + width, y, z + height);
+                        rlTexCoord2f(tw, ty); rlVertex3f(x + width, y, z);
+
+                        if (backface)
+                        {
+                            rlNormal3f(0.0f, -1.0f, 0.0f);
+                            rlTexCoord2f(tx, ty); rlVertex3f(x,         y, z);
+                            rlTexCoord2f(tw, ty); rlVertex3f(x + width, y, z);
+                            rlTexCoord2f(tw, th); rlVertex3f(x + width, y, z + height);
+                            rlTexCoord2f(tx, th); rlVertex3f(x,         y, z + height);
+                        }
+                    }
+                    else
+                    {
+                        rlNormal3f(0.0f, 0.0f, 1.0f);
+                        rlTexCoord2f(tx, ty); rlVertex3f(x,         y,          0.0f);
+                        rlTexCoord2f(tx, th); rlVertex3f(x,         y + height, 0.0f);
+                        rlTexCoord2f(tw, th); rlVertex3f(x + width, y + height, 0.0f);
+                        rlTexCoord2f(tw, ty); rlVertex3f(x + width, y,          0.0f);
+                    }
+                rlEnd();
+            rlPopMatrix();
+        }
+
+        // normal text pass
         rlPushMatrix();
             rlTranslatef(position.x, position.y, position.z);
 
@@ -103,7 +148,6 @@ static void DrawTextCodepointUniversial(Font font, int codepoint, Vector3 positi
 
                 if (is3D)
                 {
-                    // XZ plane: normal pointing up
                     rlNormal3f(0.0f, 1.0f, 0.0f);
                     rlTexCoord2f(tx, ty); rlVertex3f(x,         y, z);
                     rlTexCoord2f(tx, th); rlVertex3f(x,         y, z + height);
@@ -121,7 +165,6 @@ static void DrawTextCodepointUniversial(Font font, int codepoint, Vector3 positi
                 }
                 else
                 {
-                    // XY plane: normal toward camera (+Z)
                     rlNormal3f(0.0f, 0.0f, 1.0f);
                     rlTexCoord2f(tx, ty); rlVertex3f(x,         y,          0.0f);
                     rlTexCoord2f(tx, th); rlVertex3f(x,         y + height, 0.0f);
@@ -139,7 +182,7 @@ static void DrawTextCodepointUniversial(Font font, int codepoint, Vector3 positi
    and drives coordinate layout and advance formula:
    - 3D: XZ plane, world-unit advances (divided by baseSize)
    - 2D: XY plane, pixel advances (scaled by fontSize/baseSize) */
-static void DrawTextUnified(Font font, const char *text, Vector3 position, float fontSize, float spacing, bool backface, Color tint)
+static void DrawTextUnified(Font font, const char *text, Vector3 position, float fontSize, float spacing, bool backface, Color tint, Vector2 shadowOffset, Color shadowColor)
 {
     int length = TextLength(text);
     float textOffsetY = 0.0f;
@@ -169,7 +212,7 @@ static void DrawTextUnified(Font font, const char *text, Vector3 position, float
                 Vector3 pos = is3D
                     ? (Vector3){ position.x + textOffsetX, position.y,             position.z + textOffsetY }
                     : (Vector3){ position.x + textOffsetX, position.y + textOffsetY, 0.0f };
-                DrawTextCodepointUniversial(font, codepoint, pos, fontSize, backface, tint);
+                DrawTextCodepointUniversial(font, codepoint, pos, fontSize, backface, tint, shadowOffset, shadowColor);
             }
 
             if (font.glyphs[index].advanceX == 0)
@@ -243,7 +286,7 @@ static inline void wm_raylib_rendering_handle_draw_text(
 		}
 
 		// draw the text
-		DrawTextUnified(GetFontDefault(), cmd->text, ((Vector3){ 0.0f, 0.0f, 0.0f }), cmd->font_size, cmd->font_spacing, true, w2rl_color(cmd->font_color));
+		DrawTextUnified(GetFontDefault(), cmd->text, ((Vector3){ 0.0f, 0.0f, 0.0f }), cmd->font_size, cmd->font_spacing, true, w2rl_color(cmd->font_color), w2rl_vec2(cmd->font_shadow), w2rl_color(cmd->font_shadow_color));
 
 		rlPopMatrix();
 	}
