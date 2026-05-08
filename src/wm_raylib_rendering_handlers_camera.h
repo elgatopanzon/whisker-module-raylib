@@ -40,7 +40,7 @@ static inline void wm_raylib_rendering_handle_camera_begin_3d(
 			rlFrustum(-cmd->right, cmd->right, -cmd->top, cmd->top, cmd->near_clip, cmd->far_clip);
 			break;
 		case W_RENDERING_CAMERA_PROJECTION_ORTHOGRAPHIC:
-			rlOrtho(-cmd->right, cmd->right, -cmd->top, cmd->top, cmd->near_clip, cmd->far_clip);
+			rlOrtho(cmd->left, cmd->right, cmd->bottom, cmd->top, cmd->near_clip, cmd->far_clip);
 			break;
 		default:
 			break;
