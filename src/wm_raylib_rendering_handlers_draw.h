@@ -178,6 +178,39 @@ static void DrawTextCodepointUniversial(Font font, int codepoint, Vector3 positi
     }
 }
 
+/* Measure width of a single word (until whitespace or end).
+   Returns width and sets *byteCount to bytes consumed. */
+static float MeasureWordWidth(Font font, const char *text, float fontSize, float spacing, bool is3D, int *byteCount)
+{
+	float scale = fontSize / (float)font.baseSize;
+	float width = 0.0f;
+	int bytes = 0;
+
+	for (int i = 0; text[i] != '\0';)
+	{
+		int codepointByteCount = 0;
+		int codepoint = GetCodepoint(&text[i], &codepointByteCount);
+		if (codepoint == 0x3f) codepointByteCount = 1;
+
+		if (codepoint == ' ' || codepoint == '\t' || codepoint == '\n')
+			break;
+
+		int index = GetGlyphIndex(font, codepoint);
+		if (font.glyphs[index].advanceX == 0)
+			width += is3D ? (float)(font.recs[index].width + spacing) / (float)font.baseSize * scale
+			              : (float)font.recs[index].width * scale + spacing;
+		else
+			width += is3D ? (float)(font.glyphs[index].advanceX + spacing) / (float)font.baseSize * scale
+			              : (float)font.glyphs[index].advanceX * scale + spacing;
+
+		i += codepointByteCount;
+		bytes += codepointByteCount;
+	}
+
+	if (byteCount) *byteCount = bytes;
+	return width;
+}
+
 /* Measure width of a single line (until \n or end of string).
    Returns width and sets *byteCount to bytes consumed (including \n if present). */
 static float MeasureLineWidth(Font font, const char *text, float fontSize, float spacing, bool is3D, int *byteCount)
@@ -214,12 +247,68 @@ static float MeasureLineWidth(Font font, const char *text, float fontSize, float
 	return width;
 }
 
+/* Measure width of a wrapped line (respects maxWidth and word boundaries).
+   Returns width that will be rendered before wrapping occurs.
+   If maxWidth is 0 or no wrapping needed, returns full line width to \n or end. */
+static float MeasureWrappedLineWidth(Font font, const char *text, float fontSize, float spacing, bool is3D, float maxWidth)
+{
+	float scale = fontSize / (float)font.baseSize;
+	float width = 0.0f;
+	bool atLineStart = true;
+
+	for (int i = 0; text[i] != '\0';)
+	{
+		int codepointByteCount = 0;
+		int codepoint = GetCodepoint(&text[i], &codepointByteCount);
+		if (codepoint == 0x3f) codepointByteCount = 1;
+
+		if (codepoint == '\n')
+			break;
+
+		int index = GetGlyphIndex(font, codepoint);
+		float charWidth = 0.0f;
+		if (font.glyphs[index].advanceX == 0)
+			charWidth = is3D ? (float)(font.recs[index].width + spacing) / (float)font.baseSize * scale
+			                 : (float)font.recs[index].width * scale + spacing;
+		else
+			charWidth = is3D ? (float)(font.glyphs[index].advanceX + spacing) / (float)font.baseSize * scale
+			                 : (float)font.glyphs[index].advanceX * scale + spacing;
+
+		if (codepoint == ' ' || codepoint == '\t')
+		{
+			// word wrap check at space
+			if (maxWidth > 0.0f && !atLineStart)
+			{
+				float wordWidth = MeasureWordWidth(font, &text[i + codepointByteCount], fontSize, spacing, is3D, NULL);
+				if (width + charWidth + wordWidth > maxWidth)
+					break;
+			}
+			width += charWidth;
+			atLineStart = false;
+		}
+		else
+		{
+			// force-break check
+			if (maxWidth > 0.0f && width + charWidth > maxWidth && !atLineStart)
+				break;
+
+			width += charWidth;
+			atLineStart = false;
+		}
+
+		i += codepointByteCount;
+	}
+
+	return width;
+}
+
 /* Draw text using unified 2D/3D path. Mode is detected once via GL_DEPTH_TEST
    and drives coordinate layout and advance formula:
    - 3D: XZ plane, world-unit advances (divided by baseSize)
    - 2D: XY plane, pixel advances (scaled by fontSize/baseSize)
-   lineHeight is a multiplier for vertical spacing between lines (1.0 = default) */
-static void DrawTextUnified(Font font, const char *text, Vector3 position, float fontSize, float spacing, float lineHeight, bool backface, Color tint, Vector2 shadowOffset, Color shadowColor, enum W_RENDERING_TEXT_ALIGN align)
+   lineHeight is a multiplier for vertical spacing between lines (1.0 = default)
+   maxWidth enables word wrapping (0.0 = disabled). Wrapped lines use left alignment. */
+static void DrawTextUnified(Font font, const char *text, Vector3 position, float fontSize, float spacing, float lineHeight, float maxWidth, bool backface, Color tint, Vector2 shadowOffset, Color shadowColor, enum W_RENDERING_TEXT_ALIGN align)
 {
 	int length = TextLength(text);
 	float textOffsetY = 0.0f;
@@ -229,13 +318,17 @@ static void DrawTextUnified(Font font, const char *text, Vector3 position, float
 	bool is3D = glIsEnabled(GL_DEPTH_TEST);
 
 	// calculate alignment offset for first line
-	float lineWidth = MeasureLineWidth(font, text, fontSize, spacing, is3D, NULL);
+	float measuredLineWidth = MeasureLineWidth(font, text, fontSize, spacing, is3D, NULL);
 	float alignOffset = 0.0f;
 	if (align == W_RENDERING_TEXT_ALIGN_CENTER)
-		alignOffset = -lineWidth / 2.0f;
+		alignOffset = -measuredLineWidth / 2.0f;
 	else if (align == W_RENDERING_TEXT_ALIGN_RIGHT)
-		alignOffset = -lineWidth;
+		alignOffset = -measuredLineWidth;
 	textOffsetX = alignOffset;
+
+	float lineWidth = 0.0f;  // tracks current line width for wrapping
+	bool atLineStart = true;
+	float lineAdvance = is3D ? scale + 1.0f / (float)font.baseSize * scale : fontSize + 2;
 
 	for (int i = 0; i < length;)
 	{
@@ -247,34 +340,93 @@ static void DrawTextUnified(Font font, const char *text, Vector3 position, float
 		// but we need to draw all of the bad bytes using the '?' symbol moving one byte
 		if (codepoint == 0x3f) codepointByteCount = 1;
 
+		// calculate char advance width
+		float charWidth = 0.0f;
+		if (font.glyphs[index].advanceX == 0)
+			charWidth = is3D ? (float)(font.recs[index].width + spacing) / (float)font.baseSize * scale
+			                 : (float)font.recs[index].width * scale + spacing;
+		else
+			charWidth = is3D ? (float)(font.glyphs[index].advanceX + spacing) / (float)font.baseSize * scale
+			                 : (float)font.glyphs[index].advanceX * scale + spacing;
+
 		if (codepoint == '\n')
 		{
-			textOffsetY += (is3D ? scale + 1.0f / (float)font.baseSize * scale : fontSize + 2) * lineHeight;
+			textOffsetY += lineAdvance * lineHeight;
 			// calculate alignment offset for next line
-			lineWidth = MeasureLineWidth(font, &text[i + codepointByteCount], fontSize, spacing, is3D, NULL);
+			measuredLineWidth = MeasureLineWidth(font, &text[i + codepointByteCount], fontSize, spacing, is3D, NULL);
 			alignOffset = 0.0f;
 			if (align == W_RENDERING_TEXT_ALIGN_CENTER)
-				alignOffset = -lineWidth / 2.0f;
+				alignOffset = -measuredLineWidth / 2.0f;
 			else if (align == W_RENDERING_TEXT_ALIGN_RIGHT)
-				alignOffset = -lineWidth;
+				alignOffset = -measuredLineWidth;
 			textOffsetX = alignOffset;
+			lineWidth = 0.0f;
+			atLineStart = true;
+		}
+		else if (codepoint == ' ' || codepoint == '\t')
+		{
+			// word wrap check: does next word fit on current line?
+			if (maxWidth > 0.0f && !atLineStart)
+			{
+				float wordWidth = MeasureWordWidth(font, &text[i + codepointByteCount], fontSize, spacing, is3D, NULL);
+				if (lineWidth + charWidth + wordWidth > maxWidth)
+				{
+					// wrap: skip space, start new line
+					textOffsetY += lineAdvance * lineHeight;
+					// calculate alignment offset for wrapped line
+					float nextLineWidth = MeasureWrappedLineWidth(font, &text[i + codepointByteCount], fontSize, spacing, is3D, maxWidth);
+					alignOffset = 0.0f;
+					if (align == W_RENDERING_TEXT_ALIGN_CENTER)
+						alignOffset = -nextLineWidth / 2.0f;
+					else if (align == W_RENDERING_TEXT_ALIGN_RIGHT)
+						alignOffset = -nextLineWidth;
+					textOffsetX = alignOffset;
+					lineWidth = 0.0f;
+					atLineStart = true;
+					i += codepointByteCount;
+					continue;
+				}
+			}
+			// space advances but doesn't draw
+			textOffsetX += charWidth;
+			lineWidth += charWidth;
+			atLineStart = false;
 		}
 		else
 		{
-			if ((codepoint != ' ') && (codepoint != '\t'))
+			// force-break mid-word if char would overflow (but not at line start)
+			if (maxWidth > 0.0f && lineWidth + charWidth > maxWidth && !atLineStart)
 			{
-				Vector3 pos = is3D
-					? (Vector3){ position.x + textOffsetX, position.y,              position.z + textOffsetY }
+				// draw hyphen at current position before wrapping
+				Vector3 hyphenPos = is3D
+					? (Vector3){ position.x + textOffsetX, position.y, position.z + textOffsetY }
 					: (Vector3){ position.x + textOffsetX, position.y + textOffsetY, 0.0f };
-				DrawTextCodepointUniversial(font, codepoint, pos, fontSize, backface, tint, shadowOffset, shadowColor);
+				DrawTextCodepointUniversial(font, '-', hyphenPos, fontSize, backface, tint, shadowOffset, shadowColor);
+
+				// wrap to next line
+				textOffsetY += lineAdvance * lineHeight;
+				// calculate alignment offset for wrapped line (re-measure from current char)
+				float nextLineWidth = MeasureWrappedLineWidth(font, &text[i], fontSize, spacing, is3D, maxWidth);
+				alignOffset = 0.0f;
+				if (align == W_RENDERING_TEXT_ALIGN_CENTER)
+					alignOffset = -nextLineWidth / 2.0f;
+				else if (align == W_RENDERING_TEXT_ALIGN_RIGHT)
+					alignOffset = -nextLineWidth;
+				textOffsetX = alignOffset;
+				lineWidth = 0.0f;
+				atLineStart = true;
+				// re-process this char on new line
+				continue;
 			}
 
-			if (font.glyphs[index].advanceX == 0)
-				textOffsetX += is3D ? (float)(font.recs[index].width + spacing) / (float)font.baseSize * scale
-				                    : (float)font.recs[index].width * scale + spacing;
-			else
-				textOffsetX += is3D ? (float)(font.glyphs[index].advanceX + spacing) / (float)font.baseSize * scale
-				                    : (float)font.glyphs[index].advanceX * scale + spacing;
+			Vector3 pos = is3D
+				? (Vector3){ position.x + textOffsetX, position.y,              position.z + textOffsetY }
+				: (Vector3){ position.x + textOffsetX, position.y + textOffsetY, 0.0f };
+			DrawTextCodepointUniversial(font, codepoint, pos, fontSize, backface, tint, shadowOffset, shadowColor);
+
+			textOffsetX += charWidth;
+			lineWidth += charWidth;
+			atLineStart = false;
 		}
 
 		i += codepointByteCount;
@@ -332,15 +484,16 @@ static inline void wm_raylib_rendering_handle_draw_text(
 		rlMultMatrixf(rs.m);
 		rlTranslatef(-cmd->origin.x, -cmd->origin.y, -cmd->origin.z);
 
-		// set font size to world pixel scale
+		// scale font size and max width to world pixel scale
 		if (is3D)
 		{
 			float base_size = (float)GetFontDefault().baseSize;
 			cmd->font_size = ((float)cmd->font_size * base_size) / W_RENDERING_WORLD_PIXEL_SCALE;
+			cmd->max_width = cmd->max_width / W_RENDERING_WORLD_PIXEL_SCALE;
 		}
 
 		// draw the text
-		DrawTextUnified(GetFontDefault(), cmd->text, ((Vector3){ 0.0f, 0.0f, 0.0f }), cmd->font_size, cmd->font_spacing, cmd->font_line_height, true, w2rl_color(cmd->font_color), w2rl_vec2(cmd->font_shadow), w2rl_color(cmd->font_shadow_color), cmd->font_alignment);
+		DrawTextUnified(GetFontDefault(), cmd->text, ((Vector3){ 0.0f, 0.0f, 0.0f }), cmd->font_size, cmd->font_spacing, cmd->font_line_height, cmd->max_width, true, w2rl_color(cmd->font_color), w2rl_vec2(cmd->font_shadow), w2rl_color(cmd->font_shadow_color), cmd->font_alignment);
 
 		rlPopMatrix();
 	}
