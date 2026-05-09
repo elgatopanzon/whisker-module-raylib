@@ -15,7 +15,13 @@
 #include "wm_raylib_macros.h"
 
 #include "rlgl.h"
-#include "external/glad.h"
+// GLAD is a desktop OpenGL loader - exclude for WASM which uses WebGL/GLES
+#if defined(__EMSCRIPTEN__)
+    #include <GLES3/gl3.h>
+#else
+    #include <external/glad.h>
+#endif
+
 #include <math.h>
 #include <raymath.h>
 
