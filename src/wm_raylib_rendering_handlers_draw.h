@@ -178,55 +178,107 @@ static void DrawTextCodepointUniversial(Font font, int codepoint, Vector3 positi
     }
 }
 
+/* Measure width of a single line (until \n or end of string).
+   Returns width and sets *byteCount to bytes consumed (including \n if present). */
+static float MeasureLineWidth(Font font, const char *text, float fontSize, float spacing, bool is3D, int *byteCount)
+{
+	float scale = fontSize / (float)font.baseSize;
+	float width = 0.0f;
+	int bytes = 0;
+
+	for (int i = 0; text[i] != '\0';)
+	{
+		int codepointByteCount = 0;
+		int codepoint = GetCodepoint(&text[i], &codepointByteCount);
+		if (codepoint == 0x3f) codepointByteCount = 1;
+
+		if (codepoint == '\n')
+		{
+			bytes += codepointByteCount;
+			break;
+		}
+
+		int index = GetGlyphIndex(font, codepoint);
+		if (font.glyphs[index].advanceX == 0)
+			width += is3D ? (float)(font.recs[index].width + spacing) / (float)font.baseSize * scale
+			              : (float)font.recs[index].width * scale + spacing;
+		else
+			width += is3D ? (float)(font.glyphs[index].advanceX + spacing) / (float)font.baseSize * scale
+			              : (float)font.glyphs[index].advanceX * scale + spacing;
+
+		i += codepointByteCount;
+		bytes += codepointByteCount;
+	}
+
+	if (byteCount) *byteCount = bytes;
+	return width;
+}
+
 /* Draw text using unified 2D/3D path. Mode is detected once via GL_DEPTH_TEST
    and drives coordinate layout and advance formula:
    - 3D: XZ plane, world-unit advances (divided by baseSize)
    - 2D: XY plane, pixel advances (scaled by fontSize/baseSize)
    lineHeight is a multiplier for vertical spacing between lines (1.0 = default) */
-static void DrawTextUnified(Font font, const char *text, Vector3 position, float fontSize, float spacing, float lineHeight, bool backface, Color tint, Vector2 shadowOffset, Color shadowColor)
+static void DrawTextUnified(Font font, const char *text, Vector3 position, float fontSize, float spacing, float lineHeight, bool backface, Color tint, Vector2 shadowOffset, Color shadowColor, enum W_RENDERING_TEXT_ALIGN align)
 {
-    int length = TextLength(text);
-    float textOffsetY = 0.0f;
-    float textOffsetX = 0.0f;
-    float scale = fontSize/(float)font.baseSize;
-    if (lineHeight == 0) lineHeight = 1.0f;
-    bool is3D = glIsEnabled(GL_DEPTH_TEST);
+	int length = TextLength(text);
+	float textOffsetY = 0.0f;
+	float textOffsetX = 0.0f;
+	float scale = fontSize / (float)font.baseSize;
+	if (lineHeight == 0) lineHeight = 1.0f;
+	bool is3D = glIsEnabled(GL_DEPTH_TEST);
 
-    for (int i = 0; i < length;)
-    {
-        int codepointByteCount = 0;
-        int codepoint = GetCodepoint(&text[i], &codepointByteCount);
-        int index = GetGlyphIndex(font, codepoint);
+	// calculate alignment offset for first line
+	float lineWidth = MeasureLineWidth(font, text, fontSize, spacing, is3D, NULL);
+	float alignOffset = 0.0f;
+	if (align == W_RENDERING_TEXT_ALIGN_CENTER)
+		alignOffset = -lineWidth / 2.0f;
+	else if (align == W_RENDERING_TEXT_ALIGN_RIGHT)
+		alignOffset = -lineWidth;
+	textOffsetX = alignOffset;
 
-        // NOTE: Normally we exit the decoding sequence as soon as a bad byte is found (and return 0x3f)
-        // but we need to draw all of the bad bytes using the '?' symbol moving one byte
-        if (codepoint == 0x3f) codepointByteCount = 1;
+	for (int i = 0; i < length;)
+	{
+		int codepointByteCount = 0;
+		int codepoint = GetCodepoint(&text[i], &codepointByteCount);
+		int index = GetGlyphIndex(font, codepoint);
 
-        if (codepoint == '\n')
-        {
-            textOffsetY += (is3D ? scale + 1.0f/(float)font.baseSize*scale : fontSize + 2) * lineHeight;
-            textOffsetX = 0.0f;
-        }
-        else
-        {
-            if ((codepoint != ' ') && (codepoint != '\t'))
-            {
-                Vector3 pos = is3D
-                    ? (Vector3){ position.x + textOffsetX, position.y,             position.z + textOffsetY }
-                    : (Vector3){ position.x + textOffsetX, position.y + textOffsetY, 0.0f };
-                DrawTextCodepointUniversial(font, codepoint, pos, fontSize, backface, tint, shadowOffset, shadowColor);
-            }
+		// NOTE: Normally we exit the decoding sequence as soon as a bad byte is found (and return 0x3f)
+		// but we need to draw all of the bad bytes using the '?' symbol moving one byte
+		if (codepoint == 0x3f) codepointByteCount = 1;
 
-            if (font.glyphs[index].advanceX == 0)
-                textOffsetX += is3D ? (float)(font.recs[index].width  + spacing)/(float)font.baseSize*scale
-                                    : (float) font.recs[index].width  *scale + spacing;
-            else
-                textOffsetX += is3D ? (float)(font.glyphs[index].advanceX + spacing)/(float)font.baseSize*scale
-                                    : (float) font.glyphs[index].advanceX  *scale + spacing;
-        }
+		if (codepoint == '\n')
+		{
+			textOffsetY += (is3D ? scale + 1.0f / (float)font.baseSize * scale : fontSize + 2) * lineHeight;
+			// calculate alignment offset for next line
+			lineWidth = MeasureLineWidth(font, &text[i + codepointByteCount], fontSize, spacing, is3D, NULL);
+			alignOffset = 0.0f;
+			if (align == W_RENDERING_TEXT_ALIGN_CENTER)
+				alignOffset = -lineWidth / 2.0f;
+			else if (align == W_RENDERING_TEXT_ALIGN_RIGHT)
+				alignOffset = -lineWidth;
+			textOffsetX = alignOffset;
+		}
+		else
+		{
+			if ((codepoint != ' ') && (codepoint != '\t'))
+			{
+				Vector3 pos = is3D
+					? (Vector3){ position.x + textOffsetX, position.y,              position.z + textOffsetY }
+					: (Vector3){ position.x + textOffsetX, position.y + textOffsetY, 0.0f };
+				DrawTextCodepointUniversial(font, codepoint, pos, fontSize, backface, tint, shadowOffset, shadowColor);
+			}
 
-        i += codepointByteCount;
-    }
+			if (font.glyphs[index].advanceX == 0)
+				textOffsetX += is3D ? (float)(font.recs[index].width + spacing) / (float)font.baseSize * scale
+				                    : (float)font.recs[index].width * scale + spacing;
+			else
+				textOffsetX += is3D ? (float)(font.glyphs[index].advanceX + spacing) / (float)font.baseSize * scale
+				                    : (float)font.glyphs[index].advanceX * scale + spacing;
+		}
+
+		i += codepointByteCount;
+	}
 }
 
 
@@ -288,7 +340,7 @@ static inline void wm_raylib_rendering_handle_draw_text(
 		}
 
 		// draw the text
-		DrawTextUnified(GetFontDefault(), cmd->text, ((Vector3){ 0.0f, 0.0f, 0.0f }), cmd->font_size, cmd->font_spacing, cmd->font_line_height, true, w2rl_color(cmd->font_color), w2rl_vec2(cmd->font_shadow), w2rl_color(cmd->font_shadow_color));
+		DrawTextUnified(GetFontDefault(), cmd->text, ((Vector3){ 0.0f, 0.0f, 0.0f }), cmd->font_size, cmd->font_spacing, cmd->font_line_height, true, w2rl_color(cmd->font_color), w2rl_vec2(cmd->font_shadow), w2rl_color(cmd->font_shadow_color), cmd->font_alignment);
 
 		rlPopMatrix();
 	}
