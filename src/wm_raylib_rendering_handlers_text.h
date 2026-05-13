@@ -29,7 +29,7 @@
 #include "modules/rendering/whisker_rendering.h"
 #include "modules/rendering/whisker_rendering_commands.h"
 
-int wm_raylib_rendering_font_get_glyph_index(Font font, int codepoint)
+static inline int wm_raylib_rendering_font_get_glyph_index(Font font, int codepoint)
 {
     int index = 0;
     int fallbackIndex = 0;      // Get index of fallback glyph '?'
@@ -64,7 +64,7 @@ int wm_raylib_rendering_font_get_glyph_index(Font font, int codepoint)
 // Total number of bytes processed are returned as a parameter
 // NOTE: The standard says U+FFFD should be returned in case of errors
 // but that character is not supported by the default font in raylib
-int wm_raylib_rendering_font_get_codepoint(const char *text, int *codepointSize)
+static inline int wm_raylib_rendering_font_get_codepoint(const char *text, int *codepointSize)
 {
 /*
     UTF-8 specs from https://www.ietf.org/rfc/rfc3629.txt
@@ -216,7 +216,7 @@ int wm_raylib_rendering_font_get_codepoint(const char *text, int *codepointSize)
  *   shadow_offset - pixel/world offset for the shadow pass; (0,0) disables shadow
  *   shadow_color  - color for the shadow pass
  */
-static void wm_raylib_rendering_draw_font_codepoint(
+static inline void wm_raylib_rendering_draw_font_codepoint(
 	bool is_3d,
     Font font,
     int codepoint,
@@ -418,7 +418,7 @@ static void wm_raylib_rendering_draw_font_codepoint(
  *
  * Returns: total advance width of the word
  */
-static float wm_raylib_rendering_measure_word_width(
+static inline float wm_raylib_rendering_measure_word_width(
     Font font,
     const char *text,
     float font_size,
@@ -482,7 +482,7 @@ static float wm_raylib_rendering_measure_word_width(
  *
  * Returns: rendered width of the line (not accounting for wrapping)
  */
-static float wm_raylib_rendering_measure_line_width(
+static inline float wm_raylib_rendering_measure_line_width(
     Font font,
     const char *text,
     float font_size,
@@ -552,7 +552,7 @@ static float wm_raylib_rendering_measure_line_width(
  *
  * Returns: width that will be rendered on this line before wrapping
  */
-static float wm_raylib_rendering_measure_wrapped_line_width(
+static inline float wm_raylib_rendering_measure_wrapped_line_width(
     Font font,
     const char *text,
     float font_size,
@@ -679,7 +679,7 @@ static float wm_raylib_rendering_measure_wrapped_line_width(
  *   shadow_color  - drop-shadow color
  *   align        - horizontal alignment (LEFT, CENTER, RIGHT)
  */
-static void rm_raylib_rendering_draw_text(
+static inline void rm_raylib_rendering_draw_text(
 	bool is_3d,
     Font font,
     const char *text,
