@@ -19,6 +19,7 @@
 #include "wm_raylib_rendering_handlers_framebuffer.h"
 #include "wm_raylib_rendering_handlers_camera.h"
 #include "wm_raylib_rendering_handlers_draw.h"
+#include "wm_raylib_rendering_handlers_text.h"
 
 w_ecs_simple_system(
 	wm_raylib_rendering_flush_render_buffer_commands,

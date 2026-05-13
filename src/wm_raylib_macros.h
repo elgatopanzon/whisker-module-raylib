@@ -11,6 +11,8 @@
 
 #define w2rl_color(c) (Color){.r = c.r, .g = c.g, .b = c.b, .a = c.a}
 #define rl2w_color(c) (w_color){.r = c.r, .g = c.g, .b = c.b, .a = c.a}
+#define w2rl_color8(c) (Color){.r = c.r, .g = c.g, .b = c.b, .a = c.a}
+#define rl2w_color8(c) (w_color8){.r = c.r, .g = c.g, .b = c.b, .a = c.a}
 #define w2rl_rect(r) (Rectangle){.x = r.x, .y = r.y, .width = r.width, .height = r.height}
 #define rl2w_rect(r) (w_rect){.x = r.x, .y = r.y, .width = r.width, .height = r.height}
 #define w2rl_vec2(v) (Vector2){.x = v.x, .y = v.y}
