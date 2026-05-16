@@ -16,12 +16,6 @@
 #include "wm_raylib_macros.h"
 
 #include "rlgl.h"
-// GLAD is a desktop OpenGL loader - exclude for WASM which uses WebGL/GLES
-#if defined(__EMSCRIPTEN__)
-    #include <GLES3/gl3.h>
-#else
-    #include <external/glad.h>
-#endif
 
 #include <math.h>
 #include <raymath.h>
@@ -925,7 +919,11 @@ static inline void wm_raylib_rendering_handle_draw_text(
 	{
 		rlPushMatrix();
 
-		bool is_3d = glIsEnabled(GL_DEPTH_TEST);
+		// HACK: for now, when camera is enabled its assumed to be in 3D mode
+		// rendering doesn't work without it, so its used to convert between
+		// pixel and world units during the text draw.
+		// maybe in future it can be improved
+		bool is_3d = camera_state->active;
 
 		/* if not 3D, re-write for raylibs odd screen mode camera
 		 * note: this is mostly to keep the incoming XZ and -Z convention for

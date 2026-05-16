@@ -24,7 +24,7 @@ static inline void wm_raylib_rendering_handle_camera_begin_3d(
 	void *payload
 )
 {
-	(void)world;
+	struct w_rendering_camera_state *camera_state = w_rendering_get_camera_state(world);
 	struct w_rendering_cmd_camera_begin_3d *cmd = payload;
 
 	// draw any outstanding render batches
@@ -55,6 +55,8 @@ static inline void wm_raylib_rendering_handle_camera_begin_3d(
 
 	// enable depth testing (respect Z)
 	rlEnableDepthTest();
+
+	camera_state->active = true;
 }
 
 static inline void wm_raylib_rendering_handle_camera_end_3d(
@@ -62,7 +64,8 @@ static inline void wm_raylib_rendering_handle_camera_end_3d(
 	void *payload
 )
 {
-	(void)world; (void)payload;
+	(void)payload;
+	struct w_rendering_camera_state *camera_state = w_rendering_get_camera_state(world);
 
 	// draw pending render batches
 	rlDrawRenderBatchActive();
@@ -76,6 +79,8 @@ static inline void wm_raylib_rendering_handle_camera_end_3d(
 
 	// disable depth testing (ignore Z)
 	rlDisableDepthTest();
+
+	camera_state->active = false;
 }
 
 #endif /* end of include guard WM_RAYLIB_RENDERING_HANDLERS_CAMERA_H */

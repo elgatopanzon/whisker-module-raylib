@@ -15,12 +15,6 @@
 #include "wm_raylib_macros.h"
 
 #include "rlgl.h"
-// GLAD is a desktop OpenGL loader - exclude for WASM which uses WebGL/GLES
-#if defined(__EMSCRIPTEN__)
-    #include <GLES3/gl3.h>
-#else
-    #include <external/glad.h>
-#endif
 
 #include "modules/rendering/whisker_rendering.h"
 #include "modules/rendering/whisker_rendering_commands.h"
