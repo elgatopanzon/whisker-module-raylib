@@ -985,6 +985,7 @@ static inline void wm_raylib_rendering_handle_draw_text(
 			cmd->font_alignment
 		);
 
+
 		rlPopMatrix();
 	}
 }
