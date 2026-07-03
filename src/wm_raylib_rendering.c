@@ -18,7 +18,7 @@ void wm_raylib_rendering_init(struct w_ecs_world *world)
 {
 	// alloc raylib rendering state resource
 	struct wm_raylib_render_state *render_state = w_mem_xcalloc_t(1, struct wm_raylib_render_state);
-	w_ecs_set_module_resource(world, WM_MODULE_RESOURCE_RAYLIB_RENDERING_ID, render_state);
+	w_ecs_set_module_resource(world, WM_RAYLIB_RENDER_STATE_MODULE_ID, render_state);
 
 	// register render handlers
 	struct w_dispatch_buffer *render_buffer = w_rendering_get_render_dispatch_buffer(world);
@@ -43,8 +43,8 @@ void wm_raylib_rendering_init(struct w_ecs_world *world)
 
 void wm_raylib_rendering_free(struct w_ecs_world *world)
 {
-	free(w_ecs_get_module_resource(world, WM_MODULE_RESOURCE_RAYLIB_RENDERING_ID));
-	w_ecs_clear_module_resource(world, WM_MODULE_RESOURCE_RAYLIB_RENDERING_ID);
+	free(w_ecs_get_module_resource(world, WM_RAYLIB_RENDER_STATE_MODULE_ID));
+	w_ecs_clear_module_resource(world, WM_RAYLIB_RENDER_STATE_MODULE_ID);
 }
 
 

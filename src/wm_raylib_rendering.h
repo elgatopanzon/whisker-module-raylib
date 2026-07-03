@@ -15,7 +15,7 @@
 #include <raylib.h>
 
 #define WM_MODULE_RESOURCE_RAYLIB_RENDERING_ID 10000
-#define WM_RAYLIB_RENDER_STATE_MODULE_ID WM_MODULE_RESOURCE_ID(RAYLIB_RENDERING, 0)
+#define WM_RAYLIB_RENDER_STATE_MODULE_ID WM_MODULE_RESOURCE_RAYLIB_RENDERING_ID
 #define wm_raylib_rendering_get_render_state(world) w_ecs_get_module_resource(world, WM_RAYLIB_RENDER_STATE_MODULE_ID);
 
 // the raylib render state
